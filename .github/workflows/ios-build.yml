@@ -162,14 +162,7 @@ jobs:
             unzip -l "$OUT" | grep -E 'Frameworks/(apptrace|libapptracecore)\.framework/(apptrace|libapptracecore)$' || true
             unzip -l "$OUT" | grep -E 'Payload/uuvpn.app/(links|shell)\.txt' || true
             /usr/bin/unzip -Z -1 "$OUT" > /dev/null 2>&1 || true
-            python3 - "$OUT" <<'PY' || true
-import sys, zipfile, stat
-z = zipfile.ZipFile(sys.argv[1])
-links = [i.filename for i in z.infolist() if stat.S_ISLNK(i.external_attr >> 16)]
-print("symlinks in ipa:", len(links))
-for l in links[:10]:
-    print("  ", l)
-PY
+            unzip -Z -l "$OUT" | awk '$1 ~ /^l/ {print "symlink: " $NF; c++} END {print "symlink entries:", c+0}'
           }
 
           package "build-mha/Build/Products/Release-iphoneos/uuvpn.app" uuvpn-mha-adhoc.ipa
