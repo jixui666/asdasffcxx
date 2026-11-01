@@ -12,9 +12,9 @@ concurrency:
 
 jobs:
   build:
-    name: Build uuvpn (SFI, unsigned)
+    name: Build & package uuvpn (SFI, unsigned)
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,11 +45,71 @@ jobs:
             -derivedDataPath build \
             build 2>&1 | tee build.log | tail -n 400
 
+      - name: Package Debug IPA (unsigned)
+        run: |
+          set -euo pipefail
+          APP="build/Build/Products/Debug-iphoneos/uuvpn.app"
+          test -d "$APP" || { echo "missing $APP"; exit 1; }
+          rm -rf Payload uuvpn-debug-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          /usr/bin/zip -qry uuvpn-debug-unsigned.ipa Payload
+          rm -rf Payload
+          ls -lh uuvpn-debug-unsigned.ipa
+          unzip -l uuvpn-debug-unsigned.ipa | grep -E 'Frameworks/(apptrace|libapptracecore)\.framework' | head -n 6 || true
+          unzip -l uuvpn-debug-unsigned.ipa | grep -E 'Payload/uuvpn.app/(links|shell)\.txt' || true
+
+      - name: Build (Release, unsigned)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          xcodebuild -project uuvpn.xcodeproj -scheme SFI \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -clonedSourcePackagesDirPath .spm-cache \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            -derivedDataPath build-release \
+            build 2>&1 | tee build-release.log | tail -n 200
+
+      - name: Package Release IPA (unsigned)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          APP="build-release/Build/Products/Release-iphoneos/uuvpn.app"
+          test -d "$APP" || { echo "missing $APP"; exit 1; }
+          rm -rf Payload uuvpn-release-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          /usr/bin/zip -qry uuvpn-release-unsigned.ipa Payload
+          rm -rf Payload
+          ls -lh uuvpn-release-unsigned.ipa
+
+      - name: Collect release log
+        if: always()
+        run: |
+          if [ -f build-release.log ]; then tail -n 40 build-release.log; fi
+
+      - name: Upload IPA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uuvpn-ipa
+          path: |
+            uuvpn-debug-unsigned.ipa
+            uuvpn-release-unsigned.ipa
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
-          path: build.log
+          path: |
+            build.log
+            build-release.log
           if-no-files-found: ignore
           retention-days: 14
