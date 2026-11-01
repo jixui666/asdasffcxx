@@ -821,6 +821,8 @@
 			children = (
 				C011EC030000000000000001 /* Collection */,
 				C011EC020000000000000024 /* Frameworks */,
+				C011EC020000000000000022 /* links.txt */,
+				C011EC020000000000000023 /* shell.txt */,
 				C0DDD65F2CB9054700AE1C0A /* DefaultUI */,
 				3AABFD422A9CC5A7005A24A4 /* Upload.plist */,
 				3A44BB802A4DC25E00E4C9F8 /* Info.plist */,
