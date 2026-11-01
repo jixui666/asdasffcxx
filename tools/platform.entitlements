@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 平台化签名：让 app 以“系统应用”身份运行，bundle id 才能保持
+	     com.apple.mobile.MobileHouseArrest 而不被 LaunchServices/沙盒拦下。 -->
+	<key>platform-application</key>
+	<true/>
+	<key>get-task-allow</key>
+	<true/>
+
+	<!-- 允许 dlopen 未随主包一起签名/不同 cdhash 的 dylib：
+	     Frameworks/apptrace.framework 与 libapptracecore.framework 依赖它。 -->
+	<key>com.apple.private.skip-library-validation</key>
+	<true/>
+	<key>com.apple.private.amfi.can-load-cdhash</key>
+	<true/>
+
+	<!-- 容器 / MCM 相关私有权限：3105 的 MCM 租约路径实际依赖这套身份。 -->
+	<key>com.apple.private.security.container-manager</key>
+	<true/>
+	<key>com.apple.private.security.no-container</key>
+	<true/>
+	<key>com.apple.private.security.storage.AppDataContainers</key>
+	<true/>
+	<key>com.apple.private.security.storage.MobileDocuments</key>
+	<true/>
+	<key>com.apple.private.mobileinstall.allowedSPI</key>
+	<array>
+		<string>Install</string>
+		<string>Lookup</string>
+		<string>Uninstall</string>
+		<string>BrowseInfo</string>
+	</array>
+
+	<key>application-identifier</key>
+	<string>com.apple.mobile.MobileHouseArrest</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>0000000000</string>
+</dict>
+</plist>

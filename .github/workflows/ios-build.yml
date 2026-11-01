@@ -67,6 +67,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          # 1) 先清掉构建留下的签名与非运行文件（.bak/.til/.DS_Store），
+          #    再逐层 ad-hoc 签名。否则 CodeResources 会把这些“工具喜欢顺手删掉”
+          #    的文件封存进去，重签后就会出现
+          #    “一个密封资源已丢失或失效 / a sealed resource is missing or invalid”。
+          clean_app() {
+            APP="$1"
+            find "$APP" -type f \( -name '*.bak' -o -name '*.til' -o -name '.DS_Store' \) -delete 2>/dev/null || true
+            find "$APP" -type d -name '_CodeSignature' -prune -exec rm -rf {} + 2>/dev/null || true
+            find "$APP" -type f -name 'embedded.mobileprovision' -delete 2>/dev/null || true
+            while IFS= read -r -d '' f; do
+              if file -b "$f" 2>/dev/null | grep -q 'Mach-O'; then
+                codesign --remove-signature "$f" >/dev/null 2>&1 || true
+              fi
+            done < <(find "$APP" -type f -print0)
+          }
+
           sign_app() {
             APP="$1"
             for fw in "$APP"/Frameworks/*.framework; do
@@ -91,12 +107,15 @@ jobs:
             APP="$1"
             OUT="$2"
             test -d "$APP" || { echo "missing $APP"; exit 1; }
+            clean_app "$APP"
             sign_app "$APP"
             echo "--- $OUT ---"
             /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
             /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
             /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
             codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | tail -n 3
+            echo "--- sealed resources shipped ---"
+            find "$APP" -type f \( -name '*.bak' -o -name '*.til' \) | head -n 5 || true
             rm -rf Payload "$OUT"
             mkdir -p Payload
             cp -R "$APP" Payload/
