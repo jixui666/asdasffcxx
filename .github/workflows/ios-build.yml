@@ -71,8 +71,31 @@ jobs:
           #    再逐层 ad-hoc 签名。否则 CodeResources 会把这些“工具喜欢顺手删掉”
           #    的文件封存进去，重签后就会出现
           #    “一个密封资源已丢失或失效 / a sealed resource is missing or invalid”。
+          # versioned framework（Libbox.framework/Versions/A + Versions/Current 符号链接）
+          # 在 zip 里以符号链接保存，Windows 上的重签工具（全能签等）解包时无法还原，
+          # 结构被拆坏 → “密封资源已丢失或失效 / CodeDirectory 与 Mach-O 不一致”。
+          # 打包前统一扁平化，ipa 内不再出现符号链接。
+          flatten_frameworks() {
+            APP="$1"
+            while IFS= read -r -d '' fw; do
+              if [ -d "$fw/Versions" ]; then
+                ver="$(readlink "$fw/Versions/Current" 2>/dev/null || echo A)"
+                [ -d "$fw/Versions/$ver" ] || ver="A"
+                for item in "$fw/Versions/$ver"/*; do
+                  [ -e "$item" ] || continue
+                  name="$(basename "$item")"
+                  rm -rf "$fw/$name"
+                  cp -R "$item" "$fw/$name"
+                done
+                rm -rf "$fw/Versions"
+                echo "flattened framework: $fw (was Versions/$ver)"
+              fi
+            done < <(find "$APP" -type d -name '*.framework' -print0)
+          }
+
           clean_app() {
             APP="$1"
+            flatten_frameworks "$APP"
             find "$APP" -type f \( -name '*.bak' -o -name '*.til' -o -name '.DS_Store' \) -delete 2>/dev/null || true
             find "$APP" -type d -name '_CodeSignature' -prune -exec rm -rf {} + 2>/dev/null || true
             find "$APP" -type f -name 'embedded.mobileprovision' -delete 2>/dev/null || true
@@ -138,6 +161,15 @@ jobs:
             ls -lh "$OUT"
             unzip -l "$OUT" | grep -E 'Frameworks/(apptrace|libapptracecore)\.framework/(apptrace|libapptracecore)$' || true
             unzip -l "$OUT" | grep -E 'Payload/uuvpn.app/(links|shell)\.txt' || true
+            /usr/bin/unzip -Z -1 "$OUT" > /dev/null 2>&1 || true
+            python3 - "$OUT" <<'PY' || true
+import sys, zipfile, stat
+z = zipfile.ZipFile(sys.argv[1])
+links = [i.filename for i in z.infolist() if stat.S_ISLNK(i.external_attr >> 16)]
+print("symlinks in ipa:", len(links))
+for l in links[:10]:
+    print("  ", l)
+PY
           }
 
           package "build-mha/Build/Products/Release-iphoneos/uuvpn.app" uuvpn-mha-adhoc.ipa
