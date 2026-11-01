@@ -4,6 +4,8 @@
 <dict>
 	<key>UUVPNAppGroupIdentifier</key>
 	<string>$(APP_GROUP_IDENTIFIER)</string>
+	<key>AppReleaseDisplayVersion</key>
+	<string>1.1.1</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>$(APP_BUNDLE_IDENTIFIER).update_profiles</string>

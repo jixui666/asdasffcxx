@@ -1995,7 +1995,7 @@
 				CODE_SIGN_ENTITLEMENTS = XiaoXiong/SFI.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 7JMK868U62;
 				ENABLE_PREVIEWS = YES;
@@ -2022,9 +2022,9 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_IDENTIFIER)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = uuvpn;
 				SWIFT_OBJC_BRIDGING_HEADER = "XiaoXiong/Collection/Collect-Bridging-Header.h";
 				OTHER_LDFLAGS = (
@@ -2050,7 +2050,7 @@
 				CODE_SIGN_ENTITLEMENTS = XiaoXiong/SFI.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 7JMK868U62;
 				ENABLE_PREVIEWS = YES;
@@ -2077,9 +2077,9 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_IDENTIFIER)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = uuvpn;
 				SWIFT_OBJC_BRIDGING_HEADER = "XiaoXiong/Collection/Collect-Bridging-Header.h";
 				OTHER_LDFLAGS = (

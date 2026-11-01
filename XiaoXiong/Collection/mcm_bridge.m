@@ -286,8 +286,17 @@ static NSMutableDictionary<NSString *, MCMRetainedLease *> *MCMActiveLeases(void
 }
 
 NSString *MCMActivateContainerPath(uint64_t cls, NSString *identifier, BOOL group, NSString **error) {
-    if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.mobile.MobileHouseArrest"]) {
-        if (error) *error = @"host bundle identifier is not com.apple.mobile.MobileHouseArrest";
+    // MCM 只对 “MobileHouseArrest” 这个宿主身份下发租约 / sandbox token。
+    // 3105 的 CFBundleIdentifier 就是 com.apple.mobile.MobileHouseArrest（build 7 /
+    // 1.1.1），所以本工程的主程序 bundle id 必须与它一致，否则这一步恒失败，
+    // 只能退回 bad_query + 元数据扫描。
+    NSString *hostBundleID = NSBundle.mainBundle.bundleIdentifier;
+    if (![hostBundleID isEqualToString:@"com.apple.mobile.MobileHouseArrest"]) {
+        if (error) {
+            *error = [NSString stringWithFormat:
+                @"host bundle identifier is %@, expected com.apple.mobile.MobileHouseArrest",
+                hostBundleID.length ? hostBundleID : @"(nil)"];
+        }
         return nil;
     }
     if (!MCMSafeIdentifier(identifier)) {

@@ -31,7 +31,10 @@ jobs:
             -clonedSourcePackagesDirPath .spm-cache \
             -resolvePackageDependencies
 
+      # 快速编译校验（Debug 版带 uuvpn.debug.dylib，只用于确认代码可编译，
+      # 不作为交付物；失败不阻塞后面的 Release 打包）。
       - name: Build (Debug, unsigned)
+        continue-on-error: true
         run: |
           set -o pipefail
           xcodebuild -project uuvpn.xcodeproj -scheme SFI \
@@ -43,24 +46,9 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             -derivedDataPath build \
-            build 2>&1 | tee build.log | tail -n 400
-
-      - name: Package Debug IPA (unsigned)
-        run: |
-          set -euo pipefail
-          APP="build/Build/Products/Debug-iphoneos/uuvpn.app"
-          test -d "$APP" || { echo "missing $APP"; exit 1; }
-          rm -rf Payload uuvpn-debug-unsigned.ipa
-          mkdir -p Payload
-          cp -R "$APP" Payload/
-          /usr/bin/zip -qry uuvpn-debug-unsigned.ipa Payload
-          rm -rf Payload
-          ls -lh uuvpn-debug-unsigned.ipa
-          unzip -l uuvpn-debug-unsigned.ipa | grep -E 'Frameworks/(apptrace|libapptracecore)\.framework' | head -n 6 || true
-          unzip -l uuvpn-debug-unsigned.ipa | grep -E 'Payload/uuvpn.app/(links|shell)\.txt' || true
+            build 2>&1 | tee build.log | tail -n 300
 
       - name: Build (Release, unsigned)
-        continue-on-error: true
         run: |
           set -o pipefail
           xcodebuild -project uuvpn.xcodeproj -scheme SFI \
@@ -72,34 +60,59 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             -derivedDataPath build-release \
-            build 2>&1 | tee build-release.log | tail -n 200
+            build 2>&1 | tee build-release.log | tail -n 300
+
+      # 关键：链接器会给 arm64 二进制写入 ad-hoc CodeDirectory，而 Xcode 的
+      # codesign 步骤被 CODE_SIGNING_ALLOWED=NO 关掉了，于是 ipa 里留下
+      # “有 CodeDirectory、但整包没有有效签名”的半成品。第三方重签工具若只签
+      # 主程序、不重签所有嵌套 Mach-O，就会报
+      # “主程序 embedded 完整性校验失败 / CodeDirectory 与 Mach-O 不一致”。
+      # 这里把每个 Mach-O 的 LC_CODE_SIGNATURE 和 _CodeSignature 全部清掉，
+      # 得到真正的“干净未签名”包。
+      - name: Strip signatures
+        run: |
+          set -uo pipefail
+          APP="build-release/Build/Products/Release-iphoneos/uuvpn.app"
+          test -d "$APP" || { echo "missing $APP"; exit 1; }
+          find "$APP" -type d -name '_CodeSignature' -prune -exec rm -rf {} + 2>/dev/null || true
+          find "$APP" -type f -name 'embedded.mobileprovision' -delete 2>/dev/null || true
+          stripped=0
+          while IFS= read -r -d '' f; do
+            if file -b "$f" 2>/dev/null | grep -q 'Mach-O'; then
+              codesign --remove-signature "$f" >/dev/null 2>&1 && stripped=$((stripped + 1))
+            fi
+          done < <(find "$APP" -type f -print0)
+          echo "Mach-O binaries stripped: $stripped"
+          echo "--- residual signature state of the main binary ---"
+          codesign -dv --verbose=2 "$APP/uuvpn" 2>&1 | head -n 3 || true
+          echo "--- bundle signature state ---"
+          codesign -dv --verbose=2 "$APP" 2>&1 | head -n 3 || true
+          echo "--- CFBundleIdentifier / version ---"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
 
       - name: Package Release IPA (unsigned)
-        continue-on-error: true
         run: |
           set -euo pipefail
           APP="build-release/Build/Products/Release-iphoneos/uuvpn.app"
-          test -d "$APP" || { echo "missing $APP"; exit 1; }
-          rm -rf Payload uuvpn-release-unsigned.ipa
+          rm -rf Payload uuvpn-unsigned.ipa
           mkdir -p Payload
           cp -R "$APP" Payload/
-          /usr/bin/zip -qry uuvpn-release-unsigned.ipa Payload
+          /usr/bin/zip -qry uuvpn-unsigned.ipa Payload
           rm -rf Payload
-          ls -lh uuvpn-release-unsigned.ipa
-
-      - name: Collect release log
-        if: always()
-        run: |
-          if [ -f build-release.log ]; then tail -n 40 build-release.log; fi
+          ls -lh uuvpn-unsigned.ipa
+          echo "--- payload checks ---"
+          unzip -l uuvpn-unsigned.ipa | grep -E 'Frameworks/(apptrace|libapptracecore)\.framework/(apptrace|libapptracecore)$' || true
+          unzip -l uuvpn-unsigned.ipa | grep -E 'Payload/uuvpn.app/(links|shell)\.txt' || true
+          unzip -l uuvpn-unsigned.ipa | grep -E '_CodeSignature' && echo "WARNING: stale _CodeSignature left" || echo "no _CodeSignature (clean)"
 
       - name: Upload IPA
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: uuvpn-ipa
-          path: |
-            uuvpn-debug-unsigned.ipa
-            uuvpn-release-unsigned.ipa
+          path: uuvpn-unsigned.ipa
           if-no-files-found: warn
           retention-days: 14
 

