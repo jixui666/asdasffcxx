@@ -33,7 +33,7 @@
 		C011ED010000000000000003 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0E540142CA17EBF0054BC97 /* Libbox.xcframework */; };
 		C011ED010000000000000004 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0E540142CA17EBF0054BC97 /* Libbox.xcframework */; };
 		C011ED010000000000000005 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0E540142CA17EBF0054BC97 /* Libbox.xcframework */; };
-		C011ED010000000000000006 /* Libbox.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C0E540142CA17EBF0054BC97 /* Libbox.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };		040797342CBBCE710003B6AC /* Nodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040797332CBBCE710003B6AC /* Nodes.swift */; };
+		040797342CBBCE710003B6AC /* Nodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040797332CBBCE710003B6AC /* Nodes.swift */; };
 		042FCA1C2CBA119D00D86618 /* SideMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042FCA1B2CBA119D00D86618 /* SideMenuView.swift */; };
 		042FCA1E2CBA171500D86618 /* SubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042FCA1D2CBA171500D86618 /* SubscriptionView.swift */; };
 		042FCA302CBA42F200D86618 /* LoginContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 042FCA232CBA42F200D86618 /* LoginContentView.swift */; };
@@ -307,7 +307,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				C011ED010000000000000006 /* Libbox.xcframework in Embed Frameworks */,
 				3A9759212A4EB69C00E4404B /* Library.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";

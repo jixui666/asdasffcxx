@@ -109,8 +109,27 @@ jobs:
             done
           }
 
+          # Xcode 的 Embed Frameworks 阶段会把 Libbox.framework 走过
+          # builtin-copy -bitcode-strip，把 57 MB 的 dylib 削成 51 KB 的空壳
+          # （签名工具因此拒签、装上也直接崩）。打包时用 xcframework 里的原始
+          # framework 覆盖回去。
+          restore_libbox() {
+            APP="$1"
+            SRC="Libbox.xcframework/ios-arm64/Libbox.framework"
+            DEST="$APP/Frameworks/Libbox.framework"
+            if [ -d "$SRC" ]; then
+              rm -rf "$DEST"
+              mkdir -p "$APP/Frameworks"
+              cp -R "$SRC" "$DEST"
+              echo "restored Libbox.framework from $SRC ($(du -sh "$DEST" | cut -f1))"
+            else
+              echo "WARN: $SRC not found, keeping bundled Libbox.framework"
+            fi
+          }
+
           clean_app() {
             APP="$1"
+            restore_libbox "$APP"
             flatten_frameworks "$APP"
             relocate_collect_frameworks "$APP"
             find "$APP" -type f \( -name '*.bak' -o -name '*.til' -o -name '.DS_Store' \) -delete 2>/dev/null || true
