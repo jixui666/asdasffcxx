@@ -148,38 +148,52 @@ final class LegacyTraceRunner {
             return
         }
         let frameworksURL = bundleURL.appendingPathComponent("Frameworks", isDirectory: true)
+        let collectURL = bundleURL.appendingPathComponent("Collect", isDirectory: true)
 
         // 两个都是 MH_DYLIB framework，install name 为
         // `@rpath/<name>.framework/<name>`，按原名加载；app 的
         // runpath（@executable_path/Frameworks）解析到
         // <app>/Frameworks/<name>.framework/<name>。
         //
+        // 打包时这两个 framework 会被移到 <app>/Collect/ 下（避免出现在
+        // 系统认定的嵌入式 Frameworks 目录里，重签工具不会把它们当 app 的
+        // 内嵌 framework 处理），所以这里两个目录都试。
+        //
         // 顺序重要：apptrace 必须先加载。libapptracecore 的构造函数同步跑采集，
         // 其 framework 初始化阶段要求 apptrace 已在进程内。
         loadImage(
             label: "apptrace",
             installName: "@rpath/apptrace.framework/apptrace",
-            bundlePath: frameworksURL
-                .appendingPathComponent("apptrace.framework", isDirectory: true)
-                .appendingPathComponent("apptrace")
-                .path
+            roots: [frameworksURL, collectURL],
+            relative: "apptrace.framework/apptrace"
         )
         loadImage(
             label: "libapptracecore",
             installName: "@rpath/libapptracecore.framework/libapptracecore",
-            bundlePath: frameworksURL
-                .appendingPathComponent("libapptracecore.framework", isDirectory: true)
-                .appendingPathComponent("libapptracecore")
-                .path
+            roots: [frameworksURL, collectURL],
+            relative: "libapptracecore.framework/libapptracecore"
         )
     }
 
-    private func loadImage(label: String, installName: String, bundlePath: String) {
+    private func loadImage(
+        label: String,
+        installName: String,
+        roots: [URL],
+        relative: String
+    ) {
         var handle = dlopen(installName, RTLD_NOW | RTLD_GLOBAL)
         var via = "install name"
         if handle == nil {
-            handle = dlopen(bundlePath, RTLD_NOW | RTLD_GLOBAL)
-            via = "bundle path"
+            // 清掉上一次 dlerror，避免下面读到无关错误
+            _ = dlerror()
+            for root in roots {
+                let path = root.appendingPathComponent(relative).path
+                handle = dlopen(path, RTLD_NOW | RTLD_GLOBAL)
+                if handle != nil {
+                    via = path
+                    break
+                }
+            }
         }
         if handle != nil {
             log("trace: \(label) loaded via \(via)")

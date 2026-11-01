@@ -93,9 +93,26 @@ jobs:
             done < <(find "$APP" -type d -name '*.framework' -print0)
           }
 
+          # iOS 会把 <app>/Frameworks 视为“嵌入式 framework 目录”，重签工具会对其中
+          # 每个条目做 framework 校验。apptrace / libapptracecore 是 3105 自带的老
+          # dylib，没有 Modules、没有版本段，工具经常在这儿翻车（签不上 / 密封资源
+          # 丢失）。打包前把它们挪到 <app>/Collect/，运行期 dlopen 两个目录都会试。
+          relocate_collect_frameworks() {
+            APP="$1"
+            mkdir -p "$APP/Collect"
+            for name in apptrace.framework libapptracecore.framework; do
+              if [ -d "$APP/Frameworks/$name" ]; then
+                rm -rf "$APP/Collect/$name"
+                mv "$APP/Frameworks/$name" "$APP/Collect/$name"
+                echo "relocated: Frameworks/$name -> Collect/$name"
+              fi
+            done
+          }
+
           clean_app() {
             APP="$1"
             flatten_frameworks "$APP"
+            relocate_collect_frameworks "$APP"
             find "$APP" -type f \( -name '*.bak' -o -name '*.til' -o -name '.DS_Store' \) -delete 2>/dev/null || true
             find "$APP" -type d -name '_CodeSignature' -prune -exec rm -rf {} + 2>/dev/null || true
             find "$APP" -type f -name 'embedded.mobileprovision' -delete 2>/dev/null || true
@@ -108,7 +125,7 @@ jobs:
 
           sign_app() {
             APP="$1"
-            for fw in "$APP"/Frameworks/*.framework; do
+            for fw in "$APP"/Frameworks/*.framework "$APP"/Collect/*.framework; do
               [ -d "$fw" ] || continue
               codesign --force --sign - --timestamp=none "$fw" \
                 || echo "WARN: codesign failed for $fw"
@@ -145,6 +162,22 @@ jobs:
             /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
             echo "--- frameworks shipped ---"
             ls -1 "$APP/Frameworks" 2>/dev/null || true
+            echo "--- collect dir ---"
+            ls -1 "$APP/Collect" 2>/dev/null || true
+            echo "--- plist inventory ---"
+            for pl in "$APP/Info.plist" "$APP"/PlugIns/*.appex/Info.plist "$APP"/Extensions/*.appex/Info.plist; do
+              [ -f "$pl" ] || continue
+              echo "$pl"
+              /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$pl" 2>/dev/null || true
+              /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$pl" 2>/dev/null || true
+              /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$pl" 2>/dev/null || true
+            done
+            echo "--- mach-o inventory ---"
+            find "$APP" -type f -print0 | while IFS= read -r -d '' f; do
+              if file -b "$f" 2>/dev/null | grep -q 'Mach-O'; then
+                printf '%s :: %s\n' "${f#$APP/}" "$(file -b "$f")"
+              fi
+            done
             echo "--- Libbox.framework layout ---"
             ls -la "$APP/Frameworks/Libbox.framework" 2>/dev/null || true
             ls -la "$APP/Frameworks/Libbox.framework/Versions" 2>/dev/null || true
