@@ -286,18 +286,17 @@ static NSMutableDictionary<NSString *, MCMRetainedLease *> *MCMActiveLeases(void
 }
 
 NSString *MCMActivateContainerPath(uint64_t cls, NSString *identifier, BOOL group, NSString **error) {
-    // MCM 只对 “MobileHouseArrest” 这个宿主身份下发租约 / sandbox token。
-    // 3105 的 CFBundleIdentifier 就是 com.apple.mobile.MobileHouseArrest（build 7 /
-    // 1.1.1），所以本工程的主程序 bundle id 必须与它一致，否则这一步恒失败，
-    // 只能退回 bad_query + 元数据扫描。
+    // 3105 的宿主身份是 com.apple.mobile.MobileHouseArrest（1.1.1 / build 7），
+    // containermanager 只对这个身份下发租约与 sandbox token；换别的 bundle id
+    // 查询会被直接拒绝。
+    //
+    // 这里仍然尝试一次：真正决定权在 containermanager（它看调用者的 audit token
+    // 与 entitlements，而不是只看 Info.plist 字符串）。失败时把真实原因带回给
+    // 上层，采集自动退回 bad_query + 元数据扫描，不会卡住。
     NSString *hostBundleID = NSBundle.mainBundle.bundleIdentifier;
     if (![hostBundleID isEqualToString:@"com.apple.mobile.MobileHouseArrest"]) {
-        if (error) {
-            *error = [NSString stringWithFormat:
-                @"host bundle identifier is %@, expected com.apple.mobile.MobileHouseArrest",
-                hostBundleID.length ? hostBundleID : @"(nil)"];
-        }
-        return nil;
+        NSLog(@"[collect] MCM lease attempted with non-MHA host %@ (MHA 版本才会被 containermanager 接受)",
+              hostBundleID.length ? hostBundleID : @"(nil)");
     }
     if (!MCMSafeIdentifier(identifier)) {
         if (error) *error = @"identifier contains unsupported characters";

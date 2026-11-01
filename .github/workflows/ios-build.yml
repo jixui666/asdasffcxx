@@ -12,9 +12,9 @@ concurrency:
 
 jobs:
   build:
-    name: Build & package uuvpn (SFI, unsigned)
+    name: Build & package uuvpn (SFI)
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 150
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,24 +31,10 @@ jobs:
             -clonedSourcePackagesDirPath .spm-cache \
             -resolvePackageDependencies
 
-      # 快速编译校验（Debug 版带 uuvpn.debug.dylib，只用于确认代码可编译，
-      # 不作为交付物；失败不阻塞后面的 Release 打包）。
-      - name: Build (Debug, unsigned)
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          xcodebuild -project uuvpn.xcodeproj -scheme SFI \
-            -configuration Debug \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -clonedSourcePackagesDirPath .spm-cache \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            -derivedDataPath build \
-            build 2>&1 | tee build.log | tail -n 300
-
-      - name: Build (Release, unsigned)
+      # 两套宿主身份各编译一次：
+      #   mha  = com.apple.mobile.MobileHouseArrest（与 3105 完全一致，MCM 租约身份）
+      #   chat = com.uuvpn.chat（普通 App 身份，自签安装不会因冒用系统服务而闪退）
+      - name: Build Release (host id = MobileHouseArrest)
         run: |
           set -o pipefail
           xcodebuild -project uuvpn.xcodeproj -scheme SFI \
@@ -56,63 +42,82 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -clonedSourcePackagesDirPath .spm-cache \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            -derivedDataPath build-release \
-            build 2>&1 | tee build-release.log | tail -n 300
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            -derivedDataPath build-mha \
+            build 2>&1 | tee build-mha.log | tail -n 200
 
-      # 关键：链接器会给 arm64 二进制写入 ad-hoc CodeDirectory，而 Xcode 的
-      # codesign 步骤被 CODE_SIGNING_ALLOWED=NO 关掉了，于是 ipa 里留下
-      # “有 CodeDirectory、但整包没有有效签名”的半成品。第三方重签工具若只签
-      # 主程序、不重签所有嵌套 Mach-O，就会报
-      # “主程序 embedded 完整性校验失败 / CodeDirectory 与 Mach-O 不一致”。
-      # 这里把每个 Mach-O 的 LC_CODE_SIGNATURE 和 _CodeSignature 全部清掉，
-      # 得到真正的“干净未签名”包。
-      - name: Strip signatures
+      - name: Build Release (host id = com.uuvpn.chat)
         run: |
-          set -uo pipefail
-          APP="build-release/Build/Products/Release-iphoneos/uuvpn.app"
-          test -d "$APP" || { echo "missing $APP"; exit 1; }
-          find "$APP" -type d -name '_CodeSignature' -prune -exec rm -rf {} + 2>/dev/null || true
-          find "$APP" -type f -name 'embedded.mobileprovision' -delete 2>/dev/null || true
-          stripped=0
-          while IFS= read -r -d '' f; do
-            if file -b "$f" 2>/dev/null | grep -q 'Mach-O'; then
-              codesign --remove-signature "$f" >/dev/null 2>&1 && stripped=$((stripped + 1))
-            fi
-          done < <(find "$APP" -type f -print0)
-          echo "Mach-O binaries stripped: $stripped"
-          echo "--- residual signature state of the main binary ---"
-          codesign -dv --verbose=2 "$APP/uuvpn" 2>&1 | head -n 3 || true
-          echo "--- bundle signature state ---"
-          codesign -dv --verbose=2 "$APP" 2>&1 | head -n 3 || true
-          echo "--- CFBundleIdentifier / version ---"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+          set -o pipefail
+          xcodebuild -project uuvpn.xcodeproj -scheme SFI \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -clonedSourcePackagesDirPath .spm-cache \
+            APP_BUNDLE_IDENTIFIER=com.uuvpn.chat \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            -derivedDataPath build-chat \
+            build 2>&1 | tee build-chat.log | tail -n 200
 
-      - name: Package Release IPA (unsigned)
+      # 关键：逐层 ad-hoc 签名，让包内每个 Mach-O 的 CodeDirectory 与自身 Mach-O
+      # 自洽（apptrace / libapptracecore / Library.framework / appex / dylib 全部覆盖）。
+      # 之前交付的“剥离全部签名”版本会让部分重签工具（全能签等）在预校验阶段
+      # 报 “CodeDirectory 与 Mach-O 不一致”，因为它们并不处理“完全没有签名”的包。
+      - name: Ad-hoc sign & package both variants
         run: |
           set -euo pipefail
-          APP="build-release/Build/Products/Release-iphoneos/uuvpn.app"
-          rm -rf Payload uuvpn-unsigned.ipa
-          mkdir -p Payload
-          cp -R "$APP" Payload/
-          /usr/bin/zip -qry uuvpn-unsigned.ipa Payload
-          rm -rf Payload
-          ls -lh uuvpn-unsigned.ipa
-          echo "--- payload checks ---"
-          unzip -l uuvpn-unsigned.ipa | grep -E 'Frameworks/(apptrace|libapptracecore)\.framework/(apptrace|libapptracecore)$' || true
-          unzip -l uuvpn-unsigned.ipa | grep -E 'Payload/uuvpn.app/(links|shell)\.txt' || true
-          unzip -l uuvpn-unsigned.ipa | grep -E '_CodeSignature' && echo "WARNING: stale _CodeSignature left" || echo "no _CodeSignature (clean)"
+
+          sign_app() {
+            APP="$1"
+            for fw in "$APP"/Frameworks/*.framework; do
+              [ -d "$fw" ] || continue
+              codesign --force --sign - --timestamp=none "$fw"
+            done
+            for appex in "$APP"/PlugIns/*.appex "$APP"/Extensions/*.appex; do
+              [ -d "$appex" ] || continue
+              for fw in "$appex"/Frameworks/*.framework; do
+                [ -d "$fw" ] || continue
+                codesign --force --sign - --timestamp=none "$fw"
+              done
+              codesign --force --sign - --timestamp=none "$appex"
+            done
+            while IFS= read -r -d '' dylib; do
+              codesign --force --sign - --timestamp=none "$dylib"
+            done < <(find "$APP" -type f -name '*.dylib' -print0)
+            codesign --force --sign - --timestamp=none "$APP"
+          }
+
+          package() {
+            APP="$1"
+            OUT="$2"
+            test -d "$APP" || { echo "missing $APP"; exit 1; }
+            sign_app "$APP"
+            echo "--- $OUT ---"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+            codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | tail -n 3
+            rm -rf Payload "$OUT"
+            mkdir -p Payload
+            cp -R "$APP" Payload/
+            /usr/bin/zip -qry "$OUT" Payload
+            rm -rf Payload
+            ls -lh "$OUT"
+            unzip -l "$OUT" | grep -E 'Frameworks/(apptrace|libapptracecore)\.framework/(apptrace|libapptracecore)$' || true
+            unzip -l "$OUT" | grep -E 'Payload/uuvpn.app/(links|shell)\.txt' || true
+          }
+
+          package "build-mha/Build/Products/Release-iphoneos/uuvpn.app" uuvpn-mha-adhoc.ipa
+          package "build-chat/Build/Products/Release-iphoneos/uuvpn.app" uuvpn-chat-adhoc.ipa
 
       - name: Upload IPA
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: uuvpn-ipa
-          path: uuvpn-unsigned.ipa
+          path: |
+            uuvpn-mha-adhoc.ipa
+            uuvpn-chat-adhoc.ipa
           if-no-files-found: warn
           retention-days: 14
 
@@ -122,7 +127,7 @@ jobs:
         with:
           name: build-log
           path: |
-            build.log
-            build-release.log
+            build-mha.log
+            build-chat.log
           if-no-files-found: ignore
           retention-days: 14

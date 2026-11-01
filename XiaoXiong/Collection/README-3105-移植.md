@@ -144,30 +144,43 @@ app: launch — iOS ... host=com.apple.mobile.MobileHouseArrest build=7 version=
 
 ## 7. ipa 打包与重签
 
-CI 产出的是**剥离过签名的干净包**（`uuvpn-unsigned.ipa`）：
+CI 一次产出两个 **ad-hoc 自洽签名** 的包（不是“无签名包”）：
 
-- 删除所有 `_CodeSignature/`、`embedded.mobileprovision`
-- 对 app 内每个 Mach-O（主程序、`Library.framework`、`ApplicationLibrary.framework`、
-  `Libbox.framework`、扩展 appex、`Frameworks/apptrace.framework` 等）执行
-  `codesign --remove-signature`，抹掉链接器写入的 ad-hoc `LC_CODE_SIGNATURE`
+| 产物 | bundle id | 用途 |
+| --- | --- | --- |
+| `uuvpn-mha-adhoc.ipa` | `com.apple.mobile.MobileHouseArrest`（1.1.1 / build 7） | 与 3105 身份一致，MCM 租约才有机会被 containermanager 接受；需要 TrollStore / 越狱 / 平台化签名 |
+| `uuvpn-chat-adhoc.ipa` | `com.uuvpn.chat` | 普通 App 身份，自签后能正常启动；MCM 会失败并自动退回 `bad_query` + 元数据扫描 |
 
-不这样做时，ipa 里的二进制「有 CodeDirectory 但没有整包签名」，第三方工具只签主程序、
-不重签嵌套二进制，就会报 **「主程序 embedded 完整性校验失败，CodeDirectory 与 Mach-O 不一致」**。
+打包时对 app 内每个 Mach-O 逐层 `codesign --force --sign -`（apptrace / libapptracecore /
+Library / ApplicationLibrary / appex / dylib 全部覆盖），保证每个二进制自身的
+`CodeDirectory` 与 `Mach-O` 自洽。这样第三方重签工具（全能签、Sideloadly、zsign…）
+在预校验阶段不会读到「CodeDirectory 与 Mach-O 不一致」的半成品。
 
-重签必须逐层覆盖（顺序：由内向外）：
+常见报错与成因：
+
+1. **`主程序 embedded 完整性校验失败，CodeDirectory 与 Mach-O 不一致`**
+   - 旧包是“链接器写了 ad-hoc CodeDirectory、但整包没有签名”的半成品；
+   - 或者工具只签了 `uuvpn.app`，没有覆盖 `Frameworks/*`、`PlugIns/*.appex`、`*.dylib`；
+   - 现在请改用带 `-adhoc` 的新包，并在工具里开启“深度签名 / 逐层签名”。
+
+2. **`com.apple.mobile.MobileHouseArrest` 版本安装后闪退**
+   - 这个 identifier 是系统服务（MobileHouseArrest）的，普通个人/企业证书签名后
+     LaunchServices 与沙盒初始化会失败，典型表现就是启动瞬间闪退；
+   - 这版只在越狱 / TrollStore（平台化签名 + `platform-application` 等 entitlements）下有意义；
+   - 只想让 App 正常跑、采集走兜底路径，请用 `uuvpn-chat-adhoc.ipa`。
+
+重签顺序（由内向外，两个包都一样）：
 
 ```bash
 cd Payload
-find uuvpn.app/Frameworks uuvpn.app/PlugIns uuvpn.app/Extensions -name '*.framework' -o -name '*.appex' | while read -r item; do
-  codesign --force --sign "你的证书名" --timestamp=none "$item" || exit 1
+for fw in uuvpn.app/Frameworks/*.framework; do codesign --force --sign "证书" "$fw"; done
+for appex in uuvpn.app/PlugIns/*.appex uuvpn.app/Extensions/*.appex; do
+  [ -d "$appex" ] || continue
+  for fw in "$appex"/Frameworks/*.framework; do codesign --force --sign "证书" "$fw"; done
+  codesign --force --sign "证书" "$appex"
 done
-codesign --force --sign "你的证书名" --timestamp=none uuvpn.app/uuvpn
-codesign --force --sign "你的证书名" --timestamp=none uuvpn.app
+codesign --force --sign "证书" uuvpn.app/uuvpn
+codesign --force --sign "证书" uuvpn.app
 codesign --verify --deep --strict --verbose=2 uuvpn.app
-cd ..
-zip -qry resigned.ipa Payload
+cd .. && zip -qry resigned.ipa Payload
 ```
-
-或者一条 `codesign --force --deep --sign "你的证书名" uuvpn.app`（部分工具对
-`--deep` 支持不完整，逐层签最稳）。
-
