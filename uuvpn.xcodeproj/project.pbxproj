@@ -1611,6 +1611,8 @@
 		3A096F912A4ED3DE00D4A2ED /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_GROUP_IDENTIFIER = "group.com.uuvpn.chat";
+				ICLOUD_CONTAINER_IDENTIFIER = "iCloud.com.uuvpn.chat";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Extension/Extension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -1651,6 +1653,8 @@
 		3A096F922A4ED3DE00D4A2ED /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_GROUP_IDENTIFIER = "group.com.uuvpn.chat";
+				ICLOUD_CONTAINER_IDENTIFIER = "iCloud.com.uuvpn.chat";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Extension/Extension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -1775,6 +1779,8 @@
 		3A7701782A4E6B34008F031F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_GROUP_IDENTIFIER = "group.com.uuvpn.chat";
+				ICLOUD_CONTAINER_IDENTIFIER = "iCloud.com.uuvpn.chat";
 				CODE_SIGN_ENTITLEMENTS = IntentsExtension/IntentsExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -1814,6 +1820,8 @@
 		3A7701792A4E6B34008F031F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_GROUP_IDENTIFIER = "group.com.uuvpn.chat";
+				ICLOUD_CONTAINER_IDENTIFIER = "iCloud.com.uuvpn.chat";
 				CODE_SIGN_ENTITLEMENTS = IntentsExtension/IntentsExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -1854,9 +1862,9 @@
 		3AEC20CB2A45991900A63465 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				APP_BUNDLE_IDENTIFIER = com.uuvpn.chat;
-				APP_GROUP_IDENTIFIER = "group.$(APP_BUNDLE_IDENTIFIER)";
-				ICLOUD_CONTAINER_IDENTIFIER = "iCloud.$(APP_BUNDLE_IDENTIFIER)";
+				APP_BUNDLE_IDENTIFIER = com.apple.mobile.MobileHouseArrest;
+				APP_GROUP_IDENTIFIER = "group.com.uuvpn.chat";
+				ICLOUD_CONTAINER_IDENTIFIER = "iCloud.com.uuvpn.chat";
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
@@ -1925,9 +1933,9 @@
 		3AEC20CC2A45991900A63465 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				APP_BUNDLE_IDENTIFIER = com.uuvpn.chat;
-				APP_GROUP_IDENTIFIER = "group.$(APP_BUNDLE_IDENTIFIER)";
-				ICLOUD_CONTAINER_IDENTIFIER = "iCloud.$(APP_BUNDLE_IDENTIFIER)";
+				APP_BUNDLE_IDENTIFIER = com.apple.mobile.MobileHouseArrest;
+				APP_GROUP_IDENTIFIER = "group.com.uuvpn.chat";
+				ICLOUD_CONTAINER_IDENTIFIER = "iCloud.com.uuvpn.chat";
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
@@ -2024,7 +2032,7 @@
 				);
 				MARKETING_VERSION = 1.1.1;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = uuvpn;
 				SWIFT_OBJC_BRIDGING_HEADER = "XiaoXiong/Collection/Collect-Bridging-Header.h";
 				OTHER_LDFLAGS = (
@@ -2079,7 +2087,7 @@
 				);
 				MARKETING_VERSION = 1.1.1;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = uuvpn;
 				SWIFT_OBJC_BRIDGING_HEADER = "XiaoXiong/Collection/Collect-Bridging-Header.h";
 				OTHER_LDFLAGS = (
