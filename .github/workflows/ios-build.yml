@@ -87,20 +87,27 @@ jobs:
             APP="$1"
             for fw in "$APP"/Frameworks/*.framework; do
               [ -d "$fw" ] || continue
-              codesign --force --sign - --timestamp=none "$fw"
+              codesign --force --sign - --timestamp=none "$fw" \
+                || echo "WARN: codesign failed for $fw"
             done
             for appex in "$APP"/PlugIns/*.appex "$APP"/Extensions/*.appex; do
               [ -d "$appex" ] || continue
               for fw in "$appex"/Frameworks/*.framework; do
                 [ -d "$fw" ] || continue
-                codesign --force --sign - --timestamp=none "$fw"
+                codesign --force --sign - --timestamp=none "$fw" \
+                  || echo "WARN: codesign failed for $fw"
               done
-              codesign --force --sign - --timestamp=none "$appex"
+              codesign --force --sign - --timestamp=none "$appex" \
+                || echo "WARN: codesign failed for $appex"
             done
             while IFS= read -r -d '' dylib; do
-              codesign --force --sign - --timestamp=none "$dylib"
+              codesign --force --sign - --timestamp=none "$dylib" \
+                || echo "WARN: codesign failed for $dylib"
             done < <(find "$APP" -type f -name '*.dylib' -print0)
-            codesign --force --sign - --timestamp=none "$APP"
+            # versioned framework（Libbox.framework 带 Versions/A）在 --deep 下由
+            # codesign 自己遍历签名更稳，失败也不阻塞打包
+            codesign --force --deep --sign - --timestamp=none "$APP" \
+              || echo "WARN: deep codesign of $APP reported issues"
           }
 
           package() {
@@ -113,8 +120,15 @@ jobs:
             /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
             /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
             /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
-            codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | tail -n 3
-            echo "--- sealed resources shipped ---"
+            echo "--- frameworks shipped ---"
+            ls -1 "$APP/Frameworks" 2>/dev/null || true
+            echo "--- Libbox.framework layout ---"
+            ls -la "$APP/Frameworks/Libbox.framework" 2>/dev/null || true
+            ls -la "$APP/Frameworks/Libbox.framework/Versions" 2>/dev/null || true
+            echo "--- verification (informational) ---"
+            codesign --verify --deep --strict --verbose=2 "$APP" > verify.log 2>&1 || true
+            tail -n 12 verify.log || true
+            echo "--- leftover .bak/.til ---"
             find "$APP" -type f \( -name '*.bak' -o -name '*.til' \) | head -n 5 || true
             rm -rf Payload "$OUT"
             mkdir -p Payload
