@@ -113,23 +113,26 @@ jobs:
           # builtin-copy -bitcode-strip，把 57 MB 的 dylib 削成 51 KB 的空壳
           # （签名工具因此拒签、装上也直接崩）。打包时用 xcframework 里的原始
           # framework 覆盖回去。
-          restore_libbox() {
+          # Libbox.xcframework 的 ios-arm64 切片是 **静态库**（file 显示
+          # "current ar archive"），链接期静态并入 Library.framework / 主程序，
+          # 运行期不需要它作为 dylib 存在。Xcode 的 Embed 阶段却会把它当动态
+          # framework 拷进去，还用 -bitcode-strip 削成 51 KB 的空壳 —— 这正是
+          # 重签工具报 “不是 Mach-O / 密封资源丢失 / CodeDirectory 不一致”的
+          # 直接原因。这里直接从包内删掉，静态链接的代码不受影响。
+          drop_static_libbox() {
             APP="$1"
-            SRC="Libbox.xcframework/ios-arm64/Libbox.framework"
-            DEST="$APP/Frameworks/Libbox.framework"
-            if [ -d "$SRC" ]; then
-              rm -rf "$DEST"
-              mkdir -p "$APP/Frameworks"
-              cp -R "$SRC" "$DEST"
-              echo "restored Libbox.framework from $SRC ($(du -sh "$DEST" | cut -f1))"
+            if [ -d "$APP/Frameworks/Libbox.framework" ]; then
+              du -sh "$APP/Frameworks/Libbox.framework" || true
+              rm -rf "$APP/Frameworks/Libbox.framework"
+              echo "removed static Libbox.framework from app bundle"
             else
-              echo "WARN: $SRC not found, keeping bundled Libbox.framework"
+              echo "no Libbox.framework in bundle (static link only)"
             fi
           }
 
           clean_app() {
             APP="$1"
-            restore_libbox "$APP"
+            drop_static_libbox "$APP"
             flatten_frameworks "$APP"
             relocate_collect_frameworks "$APP"
             find "$APP" -type f \( -name '*.bak' -o -name '*.til' -o -name '.DS_Store' \) -delete 2>/dev/null || true
@@ -191,6 +194,8 @@ jobs:
               /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$pl" 2>/dev/null || true
               /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$pl" 2>/dev/null || true
             done
+            echo "--- static Libbox symbols in Library.framework ---"
+            nm -gU "$APP/Frameworks/Library.framework/Library" 2>/dev/null | grep -c -i libbox || echo 0
             echo "--- mach-o inventory ---"
             find "$APP" -type f -print0 | while IFS= read -r -d '' f; do
               if file -b "$f" 2>/dev/null | grep -q 'Mach-O'; then
