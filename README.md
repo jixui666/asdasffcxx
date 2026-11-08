@@ -79,7 +79,7 @@ The app reads its API and page URLs from a remote JSON document. Set only `confi
 
 #### Configuration URL
 ```swift
-public let configURL = "https://upload.fengche.im/jsonvpn.php"
+public let configURL = "https://download.uuvpn2026.top/vpn.php"
 ```
 
 ### API Endpoints Configuration

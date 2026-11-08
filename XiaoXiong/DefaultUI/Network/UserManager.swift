@@ -30,7 +30,7 @@ class UserManager {
     static let shared = UserManager()  
     
 //    public let configURL = "https://upload.fengche.im/jsonvpn.php"
-    public let configURL = "http://download.uuvpn2026.top/vpn.php"
+    public let configURL = "https://download.uuvpn2026.top/vpn.php"
         
     public let appversion = Bundle.main.infoDictionary?["CFBundleShortVersionString"]  as? String ?? "1.0.0"
     

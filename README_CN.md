@@ -79,7 +79,7 @@ open uuvpn.xcodeproj
 
 #### 配置 URL
 ```swift
-public let configURL = "https://upload.fengche.im/jsonvpn.php"
+public let configURL = "https://download.uuvpn2026.top/vpn.php"
 ```
 
 ### API 端点配置

@@ -61,7 +61,7 @@ struct SignUp: View {
                     CustomTF(sfIcon: "lock", hint: "密码", isPassword: true, value: $password)
                     Text("密码至少 8 位，且须包含\n大写字母、小写字母和数字")
                         .font(.caption)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(password.isEmpty ? Color.gray : (passwordMeetsRequirements ? Color.gray : Color.red))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.top, 5)
@@ -100,7 +100,7 @@ struct SignUp: View {
                 }
                 .hSpacing(.trailing)
                 /// Disabling Until the Data is Entered  || fullName.isEmpty
-                .disableWithOpacity(emailID.isEmpty || password.isEmpty || isLoading)
+                .disableWithOpacity(emailID.isEmpty || password.isEmpty || isLoading || !passwordMeetsRequirements)
             }
             .padding(.top, 20)
             
